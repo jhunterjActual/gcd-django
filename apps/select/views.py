@@ -327,6 +327,8 @@ def select_object(request, select_key):
         story = data.get('story', False)
         cover = data.get('cover', False)
         exclude_issue_id = data.get('exclude_issue_id')
+        disabled_choice_title = data.get('disabled_choice_title', '')
+        disabled_choice_help = data.get('disabled_choice_help', '')
         search_form, cache_form = get_select_forms(request,
                                                    initial,
                                                    request_data,
@@ -342,7 +344,8 @@ def select_object(request, select_key):
                       {'heading': data['heading'],
                        'select_key': select_key,
                        'cache_form': cache_form,
-                       'disabled_choices': cache_form.disabled_choices,
+                       'disabled_choice_title': disabled_choice_title,
+                       'disabled_choice_help': disabled_choice_help,
                        'search_form': search_form,
                        'haystack_form': haystack_form,
                        'publisher': publisher,

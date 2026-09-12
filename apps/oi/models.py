@@ -53,6 +53,7 @@ from apps.gcd.models import (
 from apps.gcd.models.gcddata import GcdData, GcdLink
 
 from apps.gcd.models.issue import issue_descriptor
+from apps.gcd.models.reprint import validate_reprint_issue_ids
 from apps.gcd.models.story import show_feature, show_feature_as_text, \
                                   show_characters, show_title, \
                                   _get_civilian_identity, \
@@ -8706,48 +8707,20 @@ class ReprintRevision(Revision):
             return 1
         return 0
 
-    def is_internal(self):
-        """Return whether both ends of the link are in the same issue."""
-        if self.origin_revision:
-            origin_issue_id = self.origin_revision.issue_id
-        elif self.origin:
-            origin_issue_id = self.origin.issue_id
-        else:
-            origin_issue_id = self.origin_issue_id
+    @staticmethod
+    def _endpoint_issue_id(story_revision, story, issue_id):
+        # Added stories only have revisions; existing stories use the display
+        # object, and issue-only links fall back to their explicit issue ID.
+        endpoint = story_revision or story
+        return endpoint.issue_id if endpoint else issue_id
 
-        if self.target_revision:
-            target_issue_id = self.target_revision.issue_id
-        elif self.target:
-            target_issue_id = self.target.issue_id
-        else:
-            target_issue_id = self.target_issue_id
-
-        if origin_issue_id is None and target_issue_id is None:
-            if self.origin_revision:
-                origin_issue = self.origin_revision.issue
-            elif self.origin:
-                origin_issue = self.origin.issue
-            else:
-                origin_issue = self.origin_issue
-
-            if self.target_revision:
-                target_issue = self.target_revision.issue
-            elif self.target:
-                target_issue = self.target.issue
-            else:
-                target_issue = self.target_issue
-
-            return (origin_issue is not None and
-                    origin_issue == target_issue)
-
-        return (origin_issue_id is not None and
-                target_issue_id is not None and
-                origin_issue_id == target_issue_id)
-
-    def _is_legacy_internal_clone(self):
-        """Return whether this is the initial clone of an internal source."""
-        return (self._state.adding and self.reprint_id is not None and
-                self.reprint.is_internal())
+    def validate_reprint_link(self):
+        """Validate the issues resolved from either kind of endpoint."""
+        origin_issue_id = self._endpoint_issue_id(
+          self.origin_revision, self.origin, self.origin_issue_id)
+        target_issue_id = self._endpoint_issue_id(
+          self.target_revision, self.target, self.target_issue_id)
+        validate_reprint_issue_ids(origin_issue_id, target_issue_id)
 
     def save(self, *args, **kwargs):
         # Ensure that we can't create a nonsense link.
@@ -8803,10 +8776,8 @@ class ReprintRevision(Revision):
             if not self.target_issue:
                 self.target_issue = self.target.issue
 
-        if (not self.deleted and self.is_internal() and
-                not self._is_legacy_internal_clone()):
-            raise ValueError(
-                'Reprint origin and target cannot be in the same issue.')
+        if not self.deleted:
+            self.validate_reprint_link()
 
         super(ReprintRevision, self).save(*args, **kwargs)
 

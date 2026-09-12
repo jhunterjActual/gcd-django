@@ -8,6 +8,16 @@ from .story import Story
 from .issue import Issue
 
 
+INTERNAL_REPRINT_ERROR = 'Reprint links must connect different issues.'
+
+
+def validate_reprint_issue_ids(origin_issue_id, target_issue_id):
+    """Reject a reprint link whose endpoints belong to the same issue."""
+    if (origin_issue_id is not None and
+            origin_issue_id == target_issue_id):
+        raise ValueError(INTERNAL_REPRINT_ERROR)
+
+
 class Reprint(GcdLink):
     class Meta:
         app_label = 'gcd'
@@ -23,25 +33,6 @@ class Reprint(GcdLink):
                                      on_delete=models.CASCADE)
 
     notes = models.TextField(max_length=255)
-
-    def is_internal(self):
-        """Return whether both ends of the link are in the same issue."""
-        origin_issue_id = (self.origin.issue_id if self.origin
-                           else self.origin_issue_id)
-        target_issue_id = (self.target.issue_id if self.target
-                           else self.target_issue_id)
-
-        if origin_issue_id is None and target_issue_id is None:
-            origin_issue = (self.origin.issue if self.origin
-                            else self.origin_issue)
-            target_issue = (self.target.issue if self.target
-                            else self.target_issue)
-            return (origin_issue is not None and
-                    origin_issue == target_issue)
-
-        return (origin_issue_id is not None and
-                target_issue_id is not None and
-                origin_issue_id == target_issue_id)
 
     def save(self, update_fields=None, *args, **kwargs):
         """
@@ -72,9 +63,8 @@ class Reprint(GcdLink):
                     'target_issue' not in update_fields):
                 update_fields.append('target_issue')
 
-        if self.is_internal():
-            raise ValueError(
-                'Reprint origin and target cannot be in the same issue.')
+        validate_reprint_issue_ids(self.origin_issue_id,
+                                   self.target_issue_id)
 
         if update_fields is not None:
             kwargs['update_fields'] = update_fields

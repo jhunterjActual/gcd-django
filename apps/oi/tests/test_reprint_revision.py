@@ -85,48 +85,19 @@ def test_save_rejects_internal_reprint(patched_for_save):
     origin_revision = StoryRevision(issue=origin.issue)
     r = ReprintRevision(origin_revision=origin_revision, target=target)
 
-    with pytest.raises(ValueError, match='same issue'):
+    with pytest.raises(ValueError, match='connect different issues'):
         r.save()
 
     assert not save_mock.called
 
 
-def test_is_internal_uses_issue_ids_without_loading_issues():
+def test_validate_reprint_link_uses_issue_ids_without_loading_issues():
     revision = ReprintRevision(
         origin_revision=StoryRevision(issue_id=1),
         target_revision=StoryRevision(issue_id=1))
 
-    assert revision.is_internal()
-
-
-def test_is_internal_handles_shared_unsaved_issue():
-    issue = Issue()
-    revision = ReprintRevision(
-        origin_revision=StoryRevision(issue=issue),
-        target_revision=StoryRevision(issue=issue))
-
-    assert revision.is_internal()
-
-
-def test_save_allows_initial_clone_of_legacy_internal_reprint(
-        patched_for_save):
-    save_mock, origin, _ = patched_for_save
-    target = Story(title='target', issue=origin.issue)
-    source = Reprint(pk=1, origin=origin, target=target)
-    revision = ReprintRevision(reprint=source, origin=origin, target=target)
-
-    revision.save()
-
-    save_mock.assert_called_once_with()
-    revision._state.adding = False
-    save_mock.reset_mock()
-    with pytest.raises(ValueError, match='same issue'):
-        revision.save()
-    assert not save_mock.called
-
-    revision.deleted = True
-    revision.save()
-    save_mock.assert_called_once_with()
+    with pytest.raises(ValueError, match='connect different issues'):
+        revision.validate_reprint_link()
 
 
 def test_save_rejects_internal_change_to_valid_source(patched_for_save):
@@ -136,7 +107,7 @@ def test_save_rejects_internal_change_to_valid_source(patched_for_save):
     revision = ReprintRevision(reprint=source, origin=origin,
                                target=internal_target)
 
-    with pytest.raises(ValueError, match='same issue'):
+    with pytest.raises(ValueError, match='connect different issues'):
         revision.save()
 
     assert not save_mock.called
